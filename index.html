@@ -84,6 +84,22 @@
   .t.err{border-color:rgba(255,42,54,.6)}
   .t.ok{border-color:rgba(45,181,96,.6)}
   .hidden{display:none !important}
+  /* mobile : menu latéral qui s'ouvre avec ☰ */
+  #mbar{display:none}
+  #scrim{display:none}
+  @media (max-width: 860px){
+    #app{display:none;flex-direction:column}
+    #mbar{display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:20;padding:12px 16px;background:var(--side);border-bottom:1px solid var(--line)}
+    #mbar button{all:unset;cursor:pointer;width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:rgba(255,255,255,.06);font-size:22px}
+    #mbar .logo{width:34px;height:34px;font-size:18px}
+    aside{position:fixed;top:0;left:0;bottom:0;width:280px;max-width:84vw;z-index:40;transform:translateX(-105%);transition:transform .22s ease;overflow-y:auto;max-width:84vw}
+    body.menu-open aside{transform:none;box-shadow:0 0 40px rgba(0,0,0,.6)}
+    body.menu-open #scrim{display:block;position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.55)}
+    main{padding:20px 16px 60px}
+    .head h1{font-size:24px}
+    .grid{grid-template-columns:1fr}
+  }
+
 </style>
 </head>
 <body>
@@ -105,6 +121,12 @@
 
 <!-- ======================= APP ======================= -->
 <div id="app">
+  <div id="mbar">
+    <button type="button" id="menuBtn" aria-label="Ouvrir le menu">☰</button>
+    <div class="logo" aria-hidden="true">Z</div>
+    <span style="font-family:Saira;font-weight:800;font-size:18px;letter-spacing:1px">Z PRO</span>
+  </div>
+  <div id="scrim"></div>
   <aside>
     <div class="brand">
       <div class="logo" aria-hidden="true">Z</div>
@@ -239,7 +261,9 @@ const PAGES = [
 function buildNav() {
   const list = ROLE === 'owner' ? PAGES : PAGES.filter(([id]) => id === 'subs');
   $('#nav').innerHTML = list.map(([id, name]) => `<button type="button" data-go="${id}">${esc(name)}</button>`).join('');
-  $('#nav').onclick = (e) => { const b = e.target.closest('[data-go]'); if (b) go(b.dataset.go); };
+  $('#nav').onclick = (e) => { const b = e.target.closest('[data-go]'); if (b) { document.body.classList.remove('menu-open'); go(b.dataset.go); window.scrollTo(0, 0); } };
+  $('#menuBtn').onclick = () => document.body.classList.toggle('menu-open');
+  $('#scrim').onclick = () => document.body.classList.remove('menu-open');
 }
 async function go(id) {
   if (ROLE !== 'owner' && id !== 'subs') id = 'subs';
