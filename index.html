@@ -136,6 +136,7 @@ const $ = (s, el = document) => el.querySelector(s);
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 let CONFIG = null;
+let ROLE = 'owner', VENDOR = null, ME_ID = null;
 
 /* ---------- petites aides ---------- */
 function toast(msg, type = 'ok') {
@@ -210,30 +211,38 @@ async function boot() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) { $('#login').classList.remove('hidden'); $('#app').style.display = 'none'; return; }
   const { data: me } = await sb.from('admins').select('user_id').eq('user_id', session.user.id).maybeSingle();
-  if (!me) {
-    $('#lgMsg').textContent = "Ce compte n'est pas administrateur.";
-    await sb.auth.signOut(); return;
+  ME_ID = session.user.id;
+  if (me) ROLE = 'owner';
+  else {
+    const { data: v } = await sb.from('vendors').select('*').eq('user_id', session.user.id).maybeSingle();
+    if (!v || !v.active) {
+      $('#lgMsg').textContent = v ? 'Ce compte vendeur est désactivé.' : "Ce compte n'a pas accès au panel.";
+      await sb.auth.signOut(); return;
+    }
+    ROLE = 'vendor'; VENDOR = v;
   }
-  $('#whoEmail').textContent = session.user.email;
+  $('#whoEmail').textContent = session.user.email + (ROLE === 'vendor' ? ' (vendeur)' : '');
   $('#login').classList.add('hidden');
   $('#app').style.display = 'flex';
-  try { await loadConfig(); } catch { return; }
+  if (ROLE === 'owner') { try { await loadConfig(); } catch { return; } }
   buildNav();
-  go(location.hash.slice(1) || 'dashboard');
+  go(location.hash.slice(1) || (ROLE === 'owner' ? 'dashboard' : 'subs'));
 }
 
 /* ---------- navigation ---------- */
 const PAGES = [
-  ['dashboard', 'Tableau de bord'], ['subs', 'Abonnements'], ['dns', 'Serveur & DNS'], ['brand', 'Marque & logo'],
+  ['dashboard', 'Tableau de bord'], ['subs', 'Abonnements'], ['vendors', 'Vendeurs'], ['dns', 'Serveur & DNS'], ['brand', 'Marque & logo'],
   ['home', 'Accueil'], ['cats', 'Catégories'], ['vod', 'Films & Séries'], ['matchs', 'Matchs'],
   ['texts', 'Textes'], ['messages', 'Messages'], ['reports', 'Signalements'], ['devices', 'Appareils'],
   ['updates', 'Mises à jour'], ['maintenance', 'Maintenance']
 ];
 function buildNav() {
-  $('#nav').innerHTML = PAGES.map(([id, name]) => `<button type="button" data-go="${id}">${esc(name)}</button>`).join('');
+  const list = ROLE === 'owner' ? PAGES : PAGES.filter(([id]) => id === 'subs');
+  $('#nav').innerHTML = list.map(([id, name]) => `<button type="button" data-go="${id}">${esc(name)}</button>`).join('');
   $('#nav').onclick = (e) => { const b = e.target.closest('[data-go]'); if (b) go(b.dataset.go); };
 }
 async function go(id) {
+  if (ROLE !== 'owner' && id !== 'subs') id = 'subs';
   if (!RENDER[id]) id = 'dashboard';
   if (location.hash.slice(1) !== id) history.replaceState(null, '', '#' + id);
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.go === id));
@@ -692,7 +701,7 @@ let SUB_SEARCH = '';
 RENDER.subs = async (m) => {
   m.innerHTML = head('Abonnements', "Créez une ligne sur votre panel et donnez au client un code d'activation à 12 chiffres. Il le tape dans l'app à la place du nom d'utilisateur et du mot de passe.") + `
   <div class="grid">
-    <div class="card"><span class="hint">Crédits restants (panel)</span><span class="stat" id="credits">…</span><span class="hint" id="resInfo"></span></div>
+    <div class="card"><span class="hint">${ROLE === 'owner' ? 'Crédits restants (panel)' : 'Mes crédits'}</span><span class="stat" id="credits">…</span><span class="hint" id="resInfo"></span></div>
   </div>
   <div class="card" id="newSub" style="max-width:820px">
     <h2 style="font-size:18px">Nouvel abonnement</h2>
@@ -707,10 +716,10 @@ RENDER.subs = async (m) => {
     </div>
     <label class="f">Note (facultatif)<input type="text" id="sNotes" autocomplete="off"></label>
     <button class="btn primary" id="sCreate" style="align-self:flex-start">Créer l'abonnement</button>
-    <p class="hint">⚠️ Chaque création consomme des crédits sur votre panel.</p>
+    <p class="hint">⚠️ ${ROLE === 'owner' ? 'Chaque création consomme des crédits sur votre panel.' : 'Coût : 1 crédit par mois (1 mois = 1, 3 mois = 3, 6 mois = 6, 12 mois = 12).'}</p>
     <div id="sResult"></div>
   </div>
-  <div class="card" id="impSub" style="max-width:820px">
+  <div class="card ${ROLE === 'owner' ? '' : 'hidden'}" id="impSub" style="max-width:820px">
     <h2 style="font-size:18px">Ligne existante → code d'activation</h2>
     <p class="hint">Pour un client qui a déjà une ligne (nom d'utilisateur + mot de passe) : on vérifie la ligne sur votre panel et on lui donne un code. Ne consomme pas de crédits.</p>
     <div class="row">
@@ -730,7 +739,11 @@ RENDER.subs = async (m) => {
     <thead><tr><th>Client</th><th>Code</th><th>Bouquet</th><th>Expire</th><th>État</th><th>Appareil</th><th>Actions</th></tr></thead>
     <tbody id="subRows"><tr><td colspan="7" class="hint">Chargement…</td></tr></tbody></table></div>`;
 
-  cmsCall({ action: 'info' }).then(d => {
+  if (ROLE === 'vendor') cmsCall({ action: 'me' }).then(d => {
+    $('#credits').textContent = d?.credits ?? '—';
+    $('#resInfo').textContent = 'Chaque mois d\'abonnement coûte 1 crédit. Pour recharger, contactez le propriétaire.';
+  }).catch(e => { $('#credits').textContent = '—'; $('#resInfo').textContent = e.message; });
+  else cmsCall({ action: 'info' }).then(d => {
     $('#credits').textContent = d?.credits ?? d?.credit ?? d?.balance ?? '—';
     $('#resInfo').textContent = Object.entries(d || {}).filter(([k]) => !['status', 'credits', 'credit', 'balance'].includes(k)).map(([k, v]) => `${k} : ${v}`).join(' · ');
   }).catch(e => { $('#credits').textContent = '—'; $('#resInfo').textContent = 'Panel injoignable : ' + e.message; });
@@ -739,10 +752,12 @@ RENDER.subs = async (m) => {
     $('#sPack').innerHTML = (list || []).map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('') || '<option value="">Aucun bouquet</option>';
   }).catch(e => { $('#sPack').innerHTML = '<option value="">Erreur</option>'; toast(e.message, 'err'); });
 
-  const [rows, locks] = await Promise.all([
+  const [rows, locks, vends] = await Promise.all([
     q(sb.from('subscriptions').select('*').order('created_at', { ascending: false }).limit(1000)),
-    q(sb.from('device_locks').select('username,device_id,device_name').limit(5000))
+    q(sb.from('device_locks').select('username,device_id,device_name').limit(5000)),
+    ROLE === 'owner' ? q(sb.from('vendors').select('user_id,name')) : Promise.resolve([])
   ]);
+  const vendName = id => (vends.find(v => v.user_id === id) || {}).name;
   const lockOf = u => locks.find(l => l.username === u);
   const stateOf = r => {
     if (r.status !== 'active') return '<span class="pill red">Suspendu</span>';
@@ -751,7 +766,7 @@ RENDER.subs = async (m) => {
   };
   $('#subRows').innerHTML = rows.map(r => `
     <tr data-id="${r.id}" data-s="${esc([r.client_name, r.code, r.client_phone, r.username].join(' ').toLowerCase())}">
-      <td><strong>${esc(r.client_name || '—')}</strong><br><span class="hint">${esc(r.client_phone || '')}</span></td>
+      <td><strong>${esc(r.client_name || '—')}</strong><br><span class="hint">${esc(r.client_phone || '')}</span>${ROLE === 'owner' && vendName(r.created_by) ? `<br><span class="pill grey">Vendeur : ${esc(vendName(r.created_by))}</span>` : ''}</td>
       <td><span style="font-family:monospace;font-size:16px;letter-spacing:1px">${fmtCode(r.code)}</span> <button class="btn sm ghost" data-a="copy">Copier</button></td>
       <td class="hint">${esc(r.pack_name || r.pack_id || '')} · ${esc(r.months || '')} mois</td>
       <td class="hint">${esc(r.expire_at || '—')}</td>
@@ -779,7 +794,7 @@ RENDER.subs = async (m) => {
     if (!name) return toast('Écrivez le nom du client', 'err');
     const months = $('#sMonths').value;
     const packName = sel.options[sel.selectedIndex].text;
-    if (!confirm(`Créer un abonnement ${months} mois « ${packName} » pour ${name} ? Cela consomme des crédits.`)) return;
+    if (!confirm(`Créer un abonnement ${months} mois « ${packName} » pour ${name} ? Cela consomme ${months} crédit(s).`)) return;
     $('#sCreate').disabled = true; $('#sResult').innerHTML = '<p class="hint">Création en cours…</p>';
     try {
       const r = await cmsCall({ action: 'create', pack_id: sel.value, pack_name: packName, months, client_name: name, client_phone: $('#sPhone').value.trim(), notes: $('#sNotes').value.trim() });
@@ -790,6 +805,7 @@ RENDER.subs = async (m) => {
         <button class="btn" id="copyNew" style="align-self:flex-start">Copier le code</button></div>`;
       $('#copyNew').onclick = () => { navigator.clipboard.writeText(r.code); toast('Code copié'); };
       toast('Abonnement créé');
+      if (ROLE === 'vendor') cmsCall({ action: 'me' }).then(d => { $('#credits').textContent = d?.credits ?? '—'; }).catch(() => {});
       setTimeout(() => go('subs'), 30000);
     } catch (e) {
       $('#sResult').innerHTML = `<p class="hint" style="color:#FFB3B7">Erreur : ${esc(e.message)}</p>`;
@@ -828,7 +844,7 @@ RENDER.subs = async (m) => {
     };
     tr.querySelector('[data-a=renew]').onclick = e => {
       const mo = tr.querySelector('[data-f=m]').value;
-      run(e.target, { action: 'renew', id, months: mo }, 'Abonnement renouvelé', `Renouveler ${r.client_name || ''} pour ${mo} mois ? Cela consomme des crédits.`);
+      run(e.target, { action: 'renew', id, months: mo }, 'Abonnement renouvelé', `Renouveler ${r.client_name || ''} pour ${mo} mois ? Cela consomme ${mo} crédit(s).`);
     };
     tr.querySelector('[data-a=toggle]').onclick = e => {
       const en = r.status !== 'active';
@@ -836,10 +852,88 @@ RENDER.subs = async (m) => {
     };
     tr.querySelector('[data-a=reset]')?.addEventListener('click', async () => {
       if (!confirm(`Réinitialiser l'appareil de ${r.client_name || r.username} ? Le code pourra être utilisé sur un nouvel appareil.`)) return;
-      await q(sb.from('device_locks').delete().eq('username', r.username), 'Réinitialisation');
-      toast('Appareil réinitialisé'); go('subs');
+      try { await cmsCall({ action: 'reset', id }); toast('Appareil réinitialisé'); go('subs'); } catch (e) { toast(e.message, 'err'); }
     });
     tr.querySelector('[data-a=refresh]').onclick = e => run(e.target, { action: 'refresh', id }, 'Infos mises à jour');
+  });
+};
+
+/* ================= Vendeurs (comptes avec crédits) ================= */
+RENDER.vendors = async (m) => {
+  const [vends, logs, subs] = await Promise.all([
+    q(sb.from('vendors').select('*').order('created_at')),
+    q(sb.from('credit_log').select('*').order('created_at', { ascending: false }).limit(300)),
+    q(sb.from('subscriptions').select('created_by'))
+  ]);
+  const nb = id => subs.filter(x => x.created_by === id).length;
+  m.innerHTML = head('Vendeurs', "Un vendeur entre avec son email sur le même lien. Il ne voit que la page Abonnements et ses propres clients. Chaque mois d'abonnement lui coûte 1 crédit ; à 0 il est bloqué.") + `
+  <div class="card" id="newVend" style="max-width:820px">
+    <h2 style="font-size:18px">Nouveau vendeur</h2>
+    <div class="row">
+      <label class="f grow">Nom<input type="text" id="vName" autocomplete="off"></label>
+      <label class="f grow">Email (sert d'identifiant)<input type="email" id="vEmail" autocomplete="off"></label>
+      <label class="f grow">Mot de passe (6 caractères min.)<input type="text" id="vPass" autocomplete="off"></label>
+    </div>
+    <button class="btn primary" id="vCreate" style="align-self:flex-start">Créer le vendeur</button>
+  </div>
+  <div class="tbl"><table style="min-width:980px">
+    <thead><tr><th>Vendeur</th><th>Crédits</th><th>Clients</th><th>État</th><th>Ajouter / retirer des crédits</th><th></th></tr></thead>
+    <tbody>${vends.map(v => `
+      <tr data-v="${esc(v.user_id)}">
+        <td><strong>${esc(v.name)}</strong><br><span class="hint">${esc(v.email || '')}</span></td>
+        <td><span class="stat" style="font-size:26px">${v.credits}</span></td>
+        <td class="hint">${nb(v.user_id)}</td>
+        <td>${v.active ? '<span class="pill green">Actif</span>' : '<span class="pill red">Désactivé</span>'}</td>
+        <td><div class="row">
+          <input type="number" data-f="n" value="50" style="width:100px;height:34px" aria-label="Nombre de crédits">
+          <button class="btn sm primary" data-a="add">Ajouter</button>
+          <button class="btn sm" data-a="sub">Retirer</button>
+        </div></td>
+        <td><div class="row">
+          <button class="btn sm ${v.active ? 'danger' : ''}" data-a="toggle">${v.active ? 'Désactiver' : 'Activer'}</button>
+          <button class="btn sm ghost" data-a="pw">Mot de passe</button>
+        </div></td>
+      </tr>`).join('') || '<tr><td colspan="6" class="hint">Aucun vendeur pour le moment.</td></tr>'}
+    </tbody></table></div>
+  <div class="card">
+    <h2 style="font-size:18px">Historique des crédits</h2>
+    <div class="tbl" style="border:none"><table>
+      <thead><tr><th>Date</th><th>Vendeur</th><th>Mouvement</th><th>Solde</th><th>Détail</th></tr></thead>
+      <tbody>${logs.map(l => `<tr>
+        <td class="hint">${new Date(l.created_at).toLocaleString('fr-FR')}</td>
+        <td>${esc((vends.find(v => v.user_id === l.vendor_id) || {}).name || '')}</td>
+        <td>${l.delta > 0 ? `<span class="pill green">+${l.delta}</span>` : `<span class="pill red">${l.delta}</span>`}</td>
+        <td>${l.balance}</td>
+        <td class="hint">${esc(l.reason || '')}</td></tr>`).join('') || '<tr><td colspan="5" class="hint">Aucun mouvement.</td></tr>'}
+      </tbody></table></div>
+  </div>`;
+  $('#vCreate').onclick = async () => {
+    const name = $('#vName').value.trim(), email = $('#vEmail').value.trim(), password = $('#vPass').value;
+    if (!name || !email || password.length < 6) return toast('Nom, email et mot de passe (6 caractères min.)', 'err');
+    $('#vCreate').disabled = true;
+    try { await cmsCall({ action: 'vendor_create', name, email, password }); toast('Vendeur créé'); go('vendors'); }
+    catch (e) { toast(e.message, 'err'); $('#vCreate').disabled = false; }
+  };
+  m.querySelectorAll('tr[data-v]').forEach(tr => {
+    const vid = tr.dataset.v, v = vends.find(x => x.user_id === vid);
+    const credit = async (sign) => {
+      const n = Math.trunc(Number(tr.querySelector('[data-f=n]').value));
+      if (!n || n < 1) return toast('Nombre de crédits invalide', 'err');
+      if (!confirm(`${sign > 0 ? 'Ajouter' : 'Retirer'} ${n} crédit(s) ${sign > 0 ? 'à' : 'à'} ${v.name} ?`)) return;
+      try { const r = await cmsCall({ action: 'vendor_credit', vendor_id: vid, delta: sign * n }); toast(`Nouveau solde : ${r.credits}`); go('vendors'); }
+      catch (e) { toast(e.message, 'err'); }
+    };
+    tr.querySelector('[data-a=add]').onclick = () => credit(1);
+    tr.querySelector('[data-a=sub]').onclick = () => credit(-1);
+    tr.querySelector('[data-a=toggle]').onclick = async () => {
+      if (v.active && !confirm(`Désactiver ${v.name} ? Il ne pourra plus entrer dans le panel.`)) return;
+      try { await cmsCall({ action: 'vendor_active', vendor_id: vid, active: !v.active }); go('vendors'); } catch (e) { toast(e.message, 'err'); }
+    };
+    tr.querySelector('[data-a=pw]').onclick = async () => {
+      const pw = window.prompt(`Nouveau mot de passe pour ${v.name} (6 caractères min.)`);
+      if (!pw) return;
+      try { await cmsCall({ action: 'vendor_password', vendor_id: vid, password: pw }); toast('Mot de passe changé'); } catch (e) { toast(e.message, 'err'); }
+    };
   });
 };
 
@@ -922,7 +1016,7 @@ RENDER.maintenance = async (m) => {
   };
 };
 
-window.addEventListener('hashchange', () => { const id = location.hash.slice(1); if (CONFIG && RENDER[id]) go(id); });
+window.addEventListener('hashchange', () => { const id = location.hash.slice(1); if (ROLE && RENDER[id] && (CONFIG || ROLE !== 'owner')) go(id); });
 boot();
 </script>
 </body>
