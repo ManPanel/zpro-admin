@@ -1,0 +1,929 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Z Pro — Admin Panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Saira:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#0B0C12; --side:#0F1018; --card:#14161F; --line:rgba(255,255,255,.08);
+    --text:#FFFFFF; --muted:#C4C8D2; --quiet:#A9AEBB; --accent:#FF2A36;
+    --ok:#2DB560; --warn:#F2C230;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif;font-size:15px}
+  h1,h2,h3{font-family:Saira,Inter,sans-serif;margin:0}
+  a{color:#FF6B73}
+  button,input,select,textarea{font-family:inherit;font-size:14px}
+  input[type=text],input[type=url],input[type=email],input[type=password],input[type=number],input[type=search],select,textarea{
+    height:42px;padding:0 12px;border-radius:9px;border:1px solid rgba(255,255,255,.16);background:var(--bg);color:#fff;width:100%}
+  textarea{height:auto;padding:10px 12px;resize:vertical}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+  input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
+  .btn{height:42px;padding:0 16px;border-radius:9px;border:none;background:rgba(255,255,255,.1);color:#fff;font-weight:600;cursor:pointer;white-space:nowrap}
+  .btn:hover{background:rgba(255,255,255,.16)}
+  .btn.primary{background:var(--accent);font-weight:700}
+  .btn.primary:hover{filter:brightness(1.1)}
+  .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18)}
+  .btn.danger{background:rgba(229,51,63,.18);color:#FFB3B7}
+  .btn.sm{height:34px;padding:0 10px;font-size:13px}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  label.f{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:var(--muted)}
+  label.c{display:flex;align-items:center;gap:10px;font-size:15px;color:#E6E8EE}
+  .hint{font-size:13px;color:var(--quiet);margin:0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:16px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:20px}
+  .row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+  .row > .grow{flex:1 1 220px}
+  table{width:100%;border-collapse:collapse}
+  th{text-align:left;color:var(--quiet);font-size:13px;font-weight:600;padding:10px 12px}
+  td{padding:10px 12px;border-top:1px solid var(--line);vertical-align:middle}
+  .tbl{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:16px}
+  .pill{display:inline-block;padding:4px 8px;border-radius:6px;font-size:12px;font-weight:700}
+  .pill.red{background:rgba(255,42,54,.2);color:#FFB3B7}
+  .pill.grey{background:rgba(255,255,255,.08);color:var(--muted)}
+  .pill.green{background:rgba(45,181,96,.18);color:#7FE0A3}
+
+  /* layout */
+  #app{display:none;min-height:100vh;flex-wrap:wrap}
+  aside{flex:1 1 240px;max-width:270px;background:var(--side);border-right:1px solid var(--line);padding:24px 14px;display:flex;flex-direction:column;gap:20px}
+  .brand{display:flex;align-items:center;gap:12px;padding:0 8px}
+  .logo{width:40px;height:40px;border-radius:10px;background:radial-gradient(circle at 35% 30%,#FF5A63,#5A0A12 75%);display:flex;align-items:center;justify-content:center;font-family:Saira;font-weight:800;font-size:22px;box-shadow:0 0 18px rgba(255,42,54,.4)}
+  nav{display:flex;flex-direction:column;gap:2px}
+  nav button{all:unset;cursor:pointer;padding:11px 12px;border-radius:9px;color:var(--muted);font-size:15px;font-weight:500}
+  nav button:hover{background:rgba(255,255,255,.05);color:#fff}
+  nav button.on{background:rgba(255,42,54,.18);color:#fff;box-shadow:inset 3px 0 0 var(--accent)}
+  nav button:focus-visible{outline:2px solid var(--accent)}
+  .who{margin-top:auto;padding:12px;border-radius:10px;background:rgba(255,255,255,.04);font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:8px;word-break:break-all}
+  main{flex:999 1 640px;min-width:0;padding:32px 40px 60px;display:flex;flex-direction:column;gap:24px}
+  .head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px}
+  .head p{margin:6px 0 0;color:var(--muted)}
+  .head h1{font-size:30px;font-weight:700}
+
+  /* login */
+  #login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+  #login form{width:100%;max-width:420px}
+
+  /* tiles */
+  .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:20px}
+  .tile{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
+  .tile .pv{height:150px;display:flex;align-items:flex-end;padding:16px;background-size:cover;background-position:center}
+  .tile .pv span{font-family:Saira;font-weight:700;font-size:24px;text-shadow:0 2px 10px rgba(0,0,0,.6)}
+  .tile .bd{padding:16px;display:flex;flex-direction:column;gap:12px}
+  .thumb{display:inline-block;width:44px;height:44px;border-radius:50%;background:#222 center/cover;border:1px solid rgba(255,255,255,.2);flex:none}
+  .img-prev{width:160px;height:90px;border-radius:8px;background:#000 center/cover;border:1px solid var(--line);flex:none}
+  .img-prev.sq{width:90px;height:90px}
+  .img-prev.tall{width:51px;height:90px}
+  .stat{font-family:Saira;font-size:34px;font-weight:700}
+
+  #toast{position:fixed;right:24px;bottom:24px;display:flex;flex-direction:column;gap:8px;z-index:10}
+  .t{padding:12px 16px;border-radius:10px;background:#1E2130;border:1px solid var(--line);box-shadow:0 10px 30px rgba(0,0,0,.4);max-width:380px}
+  .t.err{border-color:rgba(255,42,54,.6)}
+  .t.ok{border-color:rgba(45,181,96,.6)}
+  .hidden{display:none !important}
+</style>
+</head>
+<body>
+
+<!-- ======================= LOGIN ======================= -->
+<section id="login">
+  <form class="card" id="loginForm">
+    <div class="brand" style="padding:0">
+      <div class="logo" aria-hidden="true">Z</div>
+      <div><h1 style="font-size:22px">Z PRO</h1><span class="hint">Admin Panel</span></div>
+    </div>
+    <h2 style="font-size:24px">Connexion</h2>
+    <label class="f">Email<input type="email" id="lgEmail" autocomplete="username" required></label>
+    <label class="f">Mot de passe<input type="password" id="lgPass" autocomplete="current-password" required></label>
+    <button class="btn primary" type="submit" id="lgBtn">Se connecter</button>
+    <p class="hint" id="lgMsg" role="status"></p>
+  </form>
+</section>
+
+<!-- ======================= APP ======================= -->
+<div id="app">
+  <aside>
+    <div class="brand">
+      <div class="logo" aria-hidden="true">Z</div>
+      <div style="display:flex;flex-direction:column">
+        <span style="font-family:Saira;font-weight:800;font-size:20px;letter-spacing:1px">Z PRO</span>
+        <span class="hint">Admin Panel</span>
+      </div>
+    </div>
+    <nav id="nav" aria-label="Rubriques"></nav>
+    <div class="who"><span id="whoEmail"></span><button class="btn sm ghost" id="logout" type="button">Se déconnecter</button></div>
+  </aside>
+  <main id="main" aria-live="polite"></main>
+</div>
+
+<div id="toast" aria-live="polite"></div>
+
+<script>
+/* ============================================================
+   Z Pro — Admin Panel v1
+   Données : Supabase (projet zpro). La clé publique est faite
+   pour être dans une page web ; la sécurité vient des règles RLS.
+   ============================================================ */
+const SUPABASE_URL = 'https://fwwjhwszsegnbackjxad.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_wSP31nEjmDcVZDjzMRpr6g_Uum62B0a';
+const BUCKET = 'images';
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+let CONFIG = null;
+
+/* ---------- petites aides ---------- */
+function toast(msg, type = 'ok') {
+  const d = document.createElement('div');
+  d.className = 't ' + type; d.textContent = msg;
+  $('#toast').appendChild(d);
+  setTimeout(() => d.remove(), type === 'err' ? 7000 : 3000);
+}
+function fail(e, what) {
+  console.error(e);
+  toast((what ? what + ' : ' : '') + (e?.message || e), 'err');
+}
+async function q(promise, what) {
+  const { data, error } = await promise;
+  if (error) { fail(error, what); error._shown = true; throw error; }
+  return data;
+}
+function pickFile(accept = 'image/*') {
+  return new Promise(res => {
+    const i = document.createElement('input');
+    i.type = 'file'; i.accept = accept;
+    i.onchange = () => res(i.files[0] || null);
+    i.click();
+  });
+}
+async function uploadFile(file, folder) {
+  const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
+  const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  await q(sb.storage.from(BUCKET).upload(path, file, { upsert: true, contentType: file.type || undefined }), 'Envoi du fichier');
+  return sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+}
+async function loadConfig() {
+  CONFIG = await q(sb.from('app_config').select('*').eq('id', 1).single(), 'Lecture de la configuration');
+  return CONFIG;
+}
+async function saveConfig(patch, okMsg = 'Enregistré') {
+  CONFIG = await q(sb.from('app_config').update(patch).eq('id', 1).select().single(), 'Enregistrement');
+  toast(okMsg);
+  return CONFIG;
+}
+function head(title, text, actions = '') {
+  return `<div class="head"><div><h1>${esc(title)}</h1>${text ? `<p>${esc(text)}</p>` : ''}</div><div class="row">${actions}</div></div>`;
+}
+function bg(url, fallback) {
+  return url ? `background-image:url('${esc(url)}')` : `background:${fallback}`;
+}
+/* lit les champs [data-k] d'un bloc et renvoie un objet */
+function readFields(root) {
+  const o = {};
+  root.querySelectorAll('[data-k]').forEach(el => {
+    const k = el.dataset.k;
+    if (el.type === 'checkbox') o[k] = el.checked;
+    else if (el.type === 'number') o[k] = el.value === '' ? null : Number(el.value);
+    else o[k] = el.value.trim() === '' ? null : el.value.trim();
+  });
+  return o;
+}
+
+/* ---------- connexion ---------- */
+$('#loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('#lgBtn').disabled = true; $('#lgMsg').textContent = 'Connexion…';
+  const { error } = await sb.auth.signInWithPassword({ email: $('#lgEmail').value.trim(), password: $('#lgPass').value });
+  $('#lgBtn').disabled = false;
+  if (error) { $('#lgMsg').textContent = 'Email ou mot de passe incorrect.'; return; }
+  $('#lgPass').value = '';
+  boot();
+});
+$('#logout').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
+
+async function boot() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { $('#login').classList.remove('hidden'); $('#app').style.display = 'none'; return; }
+  const { data: me } = await sb.from('admins').select('user_id').eq('user_id', session.user.id).maybeSingle();
+  if (!me) {
+    $('#lgMsg').textContent = "Ce compte n'est pas administrateur.";
+    await sb.auth.signOut(); return;
+  }
+  $('#whoEmail').textContent = session.user.email;
+  $('#login').classList.add('hidden');
+  $('#app').style.display = 'flex';
+  try { await loadConfig(); } catch { return; }
+  buildNav();
+  go(location.hash.slice(1) || 'dashboard');
+}
+
+/* ---------- navigation ---------- */
+const PAGES = [
+  ['dashboard', 'Tableau de bord'], ['subs', 'Abonnements'], ['dns', 'Serveur & DNS'], ['brand', 'Marque & logo'],
+  ['home', 'Accueil'], ['cats', 'Catégories'], ['vod', 'Films & Séries'], ['matchs', 'Matchs'],
+  ['texts', 'Textes'], ['messages', 'Messages'], ['reports', 'Signalements'], ['devices', 'Appareils'],
+  ['updates', 'Mises à jour'], ['maintenance', 'Maintenance']
+];
+function buildNav() {
+  $('#nav').innerHTML = PAGES.map(([id, name]) => `<button type="button" data-go="${id}">${esc(name)}</button>`).join('');
+  $('#nav').onclick = (e) => { const b = e.target.closest('[data-go]'); if (b) go(b.dataset.go); };
+}
+async function go(id) {
+  if (!RENDER[id]) id = 'dashboard';
+  if (location.hash.slice(1) !== id) history.replaceState(null, '', '#' + id);
+  document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.go === id));
+  $('#main').innerHTML = '<p class="hint">Chargement…</p>';
+  try { await RENDER[id]($('#main')); } catch (e) { if (!e?._shown) fail(e); }
+}
+const RENDER = {};
+
+/* ================= Tableau de bord ================= */
+RENDER.dashboard = async (m) => {
+  const [dns, tiles, reports] = await Promise.all([
+    q(sb.from('dns_servers').select('id,active,role')),
+    q(sb.from('home_tiles').select('key,visible')),
+    q(sb.from('reports').select('id', { count: 'exact' }).eq('resolved', false))
+  ]);
+  const c = CONFIG;
+  m.innerHTML = head('Tableau de bord', "État de l'application Z Pro.") + `
+  <div class="grid">
+    <div class="card"><span class="hint">Serveurs DNS actifs</span><span class="stat">${dns.filter(d => d.active).length}</span></div>
+    <div class="card"><span class="hint">Tuiles visibles sur l'accueil</span><span class="stat">${tiles.filter(t => t.visible).length} / ${tiles.length}</span></div>
+    <div class="card"><span class="hint">Signalements à traiter</span><span class="stat">${reports.length}</span></div>
+    <div class="card"><span class="hint">Version en ligne</span><span class="stat">${esc(c.latest_version)}</span>
+      <span>${c.force_update ? '<span class="pill red">Mise à jour obligatoire</span>' : '<span class="pill grey">Mise à jour facultative</span>'}</span></div>
+    <div class="card"><span class="hint">Maintenance</span>
+      <span>${c.maintenance_enabled ? '<span class="pill red">Activée : les clients voient l\'écran de maintenance</span>' : '<span class="pill green">Désactivée</span>'}</span></div>
+    <div class="card"><span class="hint">Dernière modification</span><span>${new Date(c.updated_at).toLocaleString('fr-FR')}</span></div>
+  </div>`;
+};
+
+/* ================= Serveur & DNS ================= */
+RENDER.dns = async (m) => {
+  const rows = await q(sb.from('dns_servers').select('*').order('position'));
+  m.innerHTML = head('Serveur & DNS', "Le client ne voit jamais ces adresses. Si le principal ne répond pas, l'app passe au secours.") + `
+  <div class="tbl"><table>
+    <thead><tr><th>Adresse</th><th>Rôle</th><th>Actif</th><th>Actions</th></tr></thead>
+    <tbody>${rows.map(r => `
+      <tr data-id="${r.id}">
+        <td style="min-width:280px"><input type="url" value="${esc(r.url)}" data-f="url" aria-label="Adresse du DNS"></td>
+        <td><select data-f="role" aria-label="Rôle"><option value="primary" ${r.role === 'primary' ? 'selected' : ''}>Principal</option><option value="backup" ${r.role === 'backup' ? 'selected' : ''}>Secours</option></select></td>
+        <td><input type="checkbox" data-f="active" aria-label="Actif" ${r.active ? 'checked' : ''}></td>
+        <td><div class="row"><button class="btn sm" data-a="test">Tester</button><button class="btn sm danger" data-a="del">Supprimer</button></div></td>
+      </tr>`).join('') || '<tr><td colspan="4" class="hint">Aucun DNS.</td></tr>'}
+    </tbody></table></div>
+  <div class="card">
+    <h2 style="font-size:18px">Ajouter un DNS</h2>
+    <div class="row">
+      <label class="f grow">Adresse (avec http:// et le port si besoin)<input type="url" id="newDns" placeholder="http://adresse:port"></label>
+      <label class="f" style="width:160px">Rôle<select id="newRole"><option value="backup">Secours</option><option value="primary">Principal</option></select></label>
+      <button class="btn primary" id="addDns">Ajouter</button>
+    </div>
+    <div class="row">
+      <label class="f grow">Ligne de test : nom d'utilisateur<input type="text" id="tUser" autocomplete="off"></label>
+      <label class="f grow">Ligne de test : mot de passe<input type="password" id="tPass" autocomplete="off"></label>
+    </div>
+    <p class="hint">La ligne de test sert au bouton « Tester » et à la synchronisation des catégories. Elle reste dans ce navigateur, elle n'est pas enregistrée dans Supabase.</p>
+  </div>
+  <div class="card" id="uaCard">
+    <h2 style="font-size:18px">Identité de l'application (User-Agent)</h2>
+    <div class="row">
+      <label class="f grow">User-Agent envoyé au serveur IPTV<input type="text" data-k="user_agent" value="${esc(CONFIG.user_agent || 'IPTVSmartersPro')}"></label>
+      <button class="btn primary" id="saveUa">Enregistrer</button>
+    </div>
+    <p class="hint">Si le panel de votre fournisseur permet de limiter une ligne à un User-Agent (« Allowed User Agents »), mettez ici un nom unique (ex. ZProPlayer) et le même nom dans le panel : la ligne ne marchera plus que dans Z Pro. Changez-le d'abord ici, attendez que les clients ouvrent l'app, puis limitez dans le panel.</p>
+  </div>`;
+  $('#saveUa').onclick = () => saveConfig(readFields($('#uaCard')));
+  $('#tUser').value = localStorage.getItem('zpro_test_user') || '';
+  $('#tPass').value = localStorage.getItem('zpro_test_pass') || '';
+  $('#tUser').onchange = e => localStorage.setItem('zpro_test_user', e.target.value.trim());
+  $('#tPass').onchange = e => localStorage.setItem('zpro_test_pass', e.target.value.trim());
+
+  m.querySelectorAll('tr[data-id]').forEach(tr => {
+    const id = tr.dataset.id;
+    tr.querySelectorAll('[data-f]').forEach(el => el.onchange = async () => {
+      const f = el.dataset.f; const v = el.type === 'checkbox' ? el.checked : el.value.trim();
+      if (f === 'role' && v === 'primary') await q(sb.from('dns_servers').update({ role: 'backup' }).neq('id', id));
+      await q(sb.from('dns_servers').update({ [f]: v }).eq('id', id), 'DNS');
+      toast('DNS enregistré'); if (f === 'role') go('dns');
+    });
+    tr.querySelector('[data-a=del]').onclick = async () => {
+      if (!confirm('Supprimer ce DNS ?')) return;
+      await q(sb.from('dns_servers').delete().eq('id', id)); toast('DNS supprimé'); go('dns');
+    };
+    tr.querySelector('[data-a=test]').onclick = async () => testDns(tr.querySelector('[data-f=url]').value.trim());
+  });
+  $('#addDns').onclick = async () => {
+    const url = $('#newDns').value.trim().replace(/\/+$/, '');
+    if (!/^https?:\/\//.test(url)) return toast("L'adresse doit commencer par http:// ou https://", 'err');
+    const role = $('#newRole').value;
+    if (role === 'primary') await q(sb.from('dns_servers').update({ role: 'backup' }).gt('id', 0));
+    await q(sb.from('dns_servers').insert({ url, role, position: rows.length + 1 }), 'Ajout du DNS');
+    toast('DNS ajouté'); go('dns');
+  };
+};
+function testLine() {
+  const u = localStorage.getItem('zpro_test_user'), p = localStorage.getItem('zpro_test_pass');
+  if (!u || !p) { toast('Remplissez d\'abord la ligne de test (rubrique Serveur & DNS).', 'err'); return null; }
+  return { u, p };
+}
+async function xtream(base, action) {
+  const t = testLine(); if (!t) throw new Error('Ligne de test manquante');
+  const url = `${base.replace(/\/+$/, '')}/player_api.php?username=${encodeURIComponent(t.u)}&password=${encodeURIComponent(t.p)}${action ? '&action=' + action : ''}`;
+  let r;
+  try { r = await fetch(url); }
+  catch (e) { throw new Error("Le serveur ne répond pas, ou il bloque les appels depuis un navigateur (CORS)."); }
+  if (!r.ok) throw new Error('Réponse ' + r.status);
+  return r.json();
+}
+async function testDns(base) {
+  try {
+    const j = await xtream(base, '');
+    if (j?.user_info?.auth == 1) toast(`OK : compte ${j.user_info.status}, ${j.user_info.max_connections} connexion(s)`);
+    else toast('Le serveur répond, mais la ligne de test est refusée.', 'err');
+  } catch (e) { if (e.message !== 'Ligne de test manquante') fail(e, 'Test'); }
+}
+async function primaryDns() {
+  const rows = await q(sb.from('dns_servers').select('url,role,active').eq('active', true).order('position'));
+  return (rows.find(r => r.role === 'primary') || rows[0])?.url;
+}
+
+/* ================= Marque & logo ================= */
+const IMG_FIELDS = [
+  ['logo_url', 'Logo', 'sq'], ['icon_url', 'Icône', 'sq'], ['splash_url', 'Image du splash', ''],
+  ['bg_tv_url', 'Fond TV (1920×1080)', ''], ['bg_phone_url', 'Fond téléphone (portrait)', 'tall']
+];
+RENDER.brand = async (m) => {
+  const c = CONFIG;
+  m.innerHTML = head('Marque & logo', 'Nom, couleurs et images de base de l\'application.') + `
+  <div class="grid">
+    <div class="card" id="brandTxt">
+      <h2 style="font-size:18px">Nom et couleurs</h2>
+      <label class="f">Nom affiché<input type="text" data-k="app_name" value="${esc(c.app_name)}"></label>
+      <label class="f">Slogan<input type="text" data-k="slogan" value="${esc(c.slogan)}"></label>
+      <div class="row">
+        <label class="f grow">Couleur principale<input type="text" data-k="primary_color" value="${esc(c.primary_color)}"></label>
+        <input type="color" aria-label="Choisir la couleur principale" value="${esc(c.primary_color)}" data-mirror="primary_color" style="width:52px;height:42px;border:none;background:none">
+      </div>
+      <div class="row">
+        <label class="f grow">Couleur du focus TV<input type="text" data-k="focus_color" value="${esc(c.focus_color)}"></label>
+        <input type="color" aria-label="Choisir la couleur du focus" value="${esc(c.focus_color)}" data-mirror="focus_color" style="width:52px;height:42px;border:none;background:none">
+      </div>
+      <button class="btn primary" id="saveBrand" style="align-self:flex-start">Enregistrer</button>
+    </div>
+    <div class="card">
+      <h2 style="font-size:18px">Images</h2>
+      ${IMG_FIELDS.map(([k, label, cls]) => `
+        <div class="row" style="align-items:center">
+          <div class="img-prev ${cls}" style="${bg(c[k], '#1B1D28')}"></div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <strong style="font-size:14px">${esc(label)}</strong>
+            <div class="row"><button class="btn sm" data-up="${k}">Changer</button>${c[k] ? `<button class="btn sm ghost" data-rm="${k}">Retirer</button>` : ''}</div>
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+  m.querySelectorAll('[data-mirror]').forEach(p => p.oninput = () => { m.querySelector(`[data-k=${p.dataset.mirror}]`).value = p.value.toUpperCase(); });
+  $('#saveBrand').onclick = async () => {
+    const o = readFields($('#brandTxt'));
+    for (const k of ['primary_color', 'focus_color']) if (o[k] && !/^#[0-9A-Fa-f]{6}$/.test(o[k])) return toast('Couleur invalide : utilisez le format #RRGGBB', 'err');
+    await saveConfig(o);
+  };
+  bindImageButtons(m, 'brand', 'brand');
+};
+function bindImageButtons(m, folder, page) {
+  m.querySelectorAll('[data-up]').forEach(b => b.onclick = async () => {
+    const f = await pickFile(); if (!f) return;
+    b.disabled = true; b.textContent = 'Envoi…';
+    try { const url = await uploadFile(f, folder); await saveConfig({ [b.dataset.up]: url }, 'Image mise à jour'); }
+    finally { go(page); }
+  });
+  m.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => {
+    await saveConfig({ [b.dataset.rm]: null }, 'Image retirée'); go(page);
+  });
+}
+
+/* ================= Accueil (tuiles) ================= */
+const TILE_FALLBACK = {
+  live: 'linear-gradient(135deg,rgba(255,42,54,.75),rgba(60,10,20,.95))',
+  settings: 'linear-gradient(135deg,#2A2D3C,#14161F)', matchs: 'linear-gradient(135deg,#1E7A54,#0A2418)',
+  films: 'linear-gradient(135deg,#3A4270,#12142A)', series: 'linear-gradient(135deg,#5E2C70,#170E22)'
+};
+RENDER.home = async (m) => {
+  const tiles = await q(sb.from('home_tiles').select('*').order('position'));
+  m.innerHTML = head('Accueil · images des tuiles', "Image, nom, ordre et visibilité de chaque tuile. Les clients voient le changement à la prochaine ouverture de l'app.") + `
+  <div class="tiles">${tiles.map((t, i) => `
+    <article class="tile" data-key="${t.key}">
+      <div class="pv" style="${bg(t.image_url, TILE_FALLBACK[t.key])}"><span>${esc(t.label)}</span></div>
+      <div class="bd">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <span class="hint">Position ${i + 1}</span>
+          ${t.image_url ? '<span class="pill green">Image personnalisée</span>' : '<span class="pill grey">Image par défaut</span>'}
+        </div>
+        <label class="f">Nom affiché<input type="text" data-f="label" value="${esc(t.label)}"></label>
+        <div class="row">
+          <button class="btn sm grow" data-a="img">Changer l'image</button>
+          ${t.image_url ? '<button class="btn sm ghost" data-a="rm">Supprimer</button>' : ''}
+        </div>
+        <div class="row" style="align-items:center">
+          <button class="btn sm ghost" data-a="up" aria-label="Monter" ${i === 0 ? 'disabled' : ''}>↑</button>
+          <button class="btn sm ghost" data-a="down" aria-label="Descendre" ${i === tiles.length - 1 ? 'disabled' : ''}>↓</button>
+          <label class="c" style="margin-left:auto"><input type="checkbox" data-f="visible" ${t.visible ? 'checked' : ''}> Visible</label>
+        </div>
+      </div>
+    </article>`).join('')}
+  </div>
+  <p class="hint">Conseil : images en 16:9 (par exemple 1280×720), en JPG, moins de 500 Ko.</p>`;
+  m.querySelectorAll('.tile').forEach(el => {
+    const key = el.dataset.key, idx = tiles.findIndex(t => t.key === key);
+    const upd = async (patch, msg = 'Tuile enregistrée') => { await q(sb.from('home_tiles').update(patch).eq('key', key), 'Tuile'); toast(msg); go('home'); };
+    el.querySelector('[data-f=label]').onchange = e => upd({ label: e.target.value.trim() || tiles[idx].label });
+    el.querySelector('[data-f=visible]').onchange = e => upd({ visible: e.target.checked });
+    el.querySelector('[data-a=img]').onclick = async () => { const f = await pickFile(); if (!f) return; const url = await uploadFile(f, 'tiles'); upd({ image_url: url }, 'Image mise à jour'); };
+    el.querySelector('[data-a=rm]')?.addEventListener('click', () => upd({ image_url: null }, 'Image retirée'));
+    const swap = async (j) => {
+      const a = tiles[idx], b = tiles[j];
+      await q(sb.from('home_tiles').update({ position: b.position }).eq('key', a.key));
+      await q(sb.from('home_tiles').update({ position: a.position }).eq('key', b.key));
+      go('home');
+    };
+    el.querySelector('[data-a=up]').onclick = () => swap(idx - 1);
+    el.querySelector('[data-a=down]').onclick = () => swap(idx + 1);
+  });
+};
+
+/* ================= Catégories ================= */
+let CAT_KIND = 'live';
+const KIND_ACTION = { live: 'get_live_categories', vod: 'get_vod_categories', series: 'get_series_categories' };
+const KIND_NAME = { live: 'Live TV', vod: 'Films', series: 'Séries' };
+RENDER.cats = async (m) => {
+  const rows = await q(sb.from('categories').select('*').eq('kind', CAT_KIND).order('position', { nullsFirst: false }).order('id'));
+  m.innerHTML = head('Catégories', 'La liste vient du panel revendeur. Ici vous choisissez l\'image, le nom affiché, l\'ordre et la visibilité.',
+    `<button class="btn ghost" id="sync">Synchroniser la liste</button>`) + `
+  <div class="row" role="tablist" aria-label="Type de contenu">
+    ${Object.keys(KIND_NAME).map(k => `<button class="btn ${k === CAT_KIND ? 'primary' : 'ghost'}" role="tab" aria-selected="${k === CAT_KIND}" data-kind="${k}">${KIND_NAME[k]}</button>`).join('')}
+    <label class="f" style="margin-left:auto;width:240px"><span class="hint">Rechercher</span><input type="search" id="catSearch" placeholder="Nom de catégorie"></label>
+  </div>
+  <div class="tbl"><table style="min-width:860px">
+    <thead><tr><th>Ordre</th><th>Image</th><th>Nom dans le panel</th><th>Nom affiché</th><th>Visible</th><th>Code parental</th><th>Actions</th></tr></thead>
+    <tbody>${rows.map((r, i) => `
+      <tr data-id="${r.id}" data-name="${esc((r.raw_name || '') + ' ' + (r.display_name || '')).toLowerCase()}">
+        <td class="hint">${i + 1}</td>
+        <td><span class="thumb" style="${bg(r.image_url, '#2A2D3C')}"></span></td>
+        <td class="hint">${esc(r.raw_name)}</td>
+        <td><input type="text" data-f="display_name" value="${esc(r.display_name || '')}" placeholder="${esc(r.raw_name)}" aria-label="Nom affiché" style="width:200px"></td>
+        <td><input type="checkbox" data-f="visible" aria-label="Visible" ${r.visible ? 'checked' : ''}></td>
+        <td><input type="checkbox" data-f="locked" aria-label="Protégé par code" ${r.locked ? 'checked' : ''}></td>
+        <td><div class="row">
+          <button class="btn sm" data-a="img">Changer l'image</button>
+          ${r.image_url ? '<button class="btn sm ghost" data-a="rm">Retirer</button>' : ''}
+          <button class="btn sm ghost" data-a="up" aria-label="Monter" ${i === 0 ? 'disabled' : ''}>↑</button>
+          <button class="btn sm ghost" data-a="down" aria-label="Descendre" ${i === rows.length - 1 ? 'disabled' : ''}>↓</button>
+        </div></td>
+      </tr>`).join('') || `<tr><td colspan="7" class="hint">Aucune catégorie ${KIND_NAME[CAT_KIND]} pour l'instant. Cliquez sur « Synchroniser la liste ».</td></tr>`}
+    </tbody></table></div>
+  <p class="hint">Une catégorie sans image s'affiche avec un cercle de couleur et son nom. Le nom affiché vide = le nom du panel.</p>`;
+
+  m.querySelectorAll('[data-kind]').forEach(b => b.onclick = () => { CAT_KIND = b.dataset.kind; go('cats'); });
+  $('#catSearch').oninput = e => { const s = e.target.value.toLowerCase(); m.querySelectorAll('tr[data-id]').forEach(tr => tr.classList.toggle('hidden', !tr.dataset.name.includes(s))); };
+  $('#sync').onclick = () => syncCats();
+  m.querySelectorAll('tr[data-id]').forEach(tr => {
+    const id = Number(tr.dataset.id), idx = rows.findIndex(r => r.id === id);
+    const upd = async (patch, reload) => { await q(sb.from('categories').update(patch).eq('id', id), 'Catégorie'); toast('Catégorie enregistrée'); if (reload) go('cats'); };
+    tr.querySelectorAll('[data-f]').forEach(el => el.onchange = () => upd({ [el.dataset.f]: el.type === 'checkbox' ? el.checked : (el.value.trim() || null) }));
+    tr.querySelector('[data-a=img]').onclick = async () => { const f = await pickFile(); if (!f) return; const url = await uploadFile(f, 'categories'); upd({ image_url: url }, true); };
+    tr.querySelector('[data-a=rm]')?.addEventListener('click', () => upd({ image_url: null }, true));
+    const move = async (j) => {
+      // renumérote toute la liste puis échange les deux lignes
+      const order = rows.map(r => r.id); [order[idx], order[j]] = [order[j], order[idx]];
+      await Promise.all(order.map((rid, k) => sb.from('categories').update({ position: k + 1 }).eq('id', rid)));
+      go('cats');
+    };
+    tr.querySelector('[data-a=up]').onclick = () => move(idx - 1);
+    tr.querySelector('[data-a=down]').onclick = () => move(idx + 1);
+  });
+};
+async function syncCats() {
+  const base = await primaryDns();
+  if (!base) return toast('Aucun DNS actif. Ajoutez-en un dans « Serveur & DNS ».', 'err');
+  if (!testLine()) return;
+  const b = $('#sync'); b.disabled = true; b.textContent = 'Synchronisation…';
+  try {
+    const list = await xtream(base, KIND_ACTION[CAT_KIND]);
+    if (!Array.isArray(list)) throw new Error('Réponse inattendue du serveur');
+    const existing = await q(sb.from('categories').select('xtream_category_id').eq('kind', CAT_KIND));
+    const have = new Set(existing.map(e => String(e.xtream_category_id)));
+    const start = existing.length;
+    const fresh = list.filter(c => !have.has(String(c.category_id)))
+      .map((c, i) => ({ kind: CAT_KIND, xtream_category_id: String(c.category_id), raw_name: c.category_name, position: start + i + 1 }));
+    if (fresh.length) await q(sb.from('categories').insert(fresh), 'Ajout des catégories');
+    // met à jour le nom du panel des catégories déjà connues
+    await Promise.all(list.filter(c => have.has(String(c.category_id))).map(c =>
+      sb.from('categories').update({ raw_name: c.category_name }).eq('kind', CAT_KIND).eq('xtream_category_id', String(c.category_id))));
+    toast(`${list.length} catégories lues, ${fresh.length} nouvelle(s)`);
+    go('cats');
+  } catch (e) { fail(e, 'Synchronisation'); b.disabled = false; b.textContent = 'Synchroniser la liste'; }
+}
+
+/* ================= Films & Séries ================= */
+RENDER.vod = async (m) => {
+  const c = CONFIG;
+  m.innerHTML = head('Films & Séries', "Le film ou la série « À la une » en haut des écrans Films et Séries. L'ordre et les noms des bouquets se règlent dans « Catégories ».") + `
+  <div class="grid">
+    <div class="card" id="featTxt">
+      <h2 style="font-size:18px">À la une</h2>
+      <label class="f">ID du film à la une (stream_id du panel)<input type="text" data-k="featured_vod_id" value="${esc(c.featured_vod_id)}" placeholder="Vide = le dernier film ajouté"></label>
+      <label class="f">ID de la série à la une (series_id du panel)<input type="text" data-k="featured_series_id" value="${esc(c.featured_series_id)}" placeholder="Vide = la dernière série ajoutée"></label>
+      <button class="btn primary" id="saveFeat" style="align-self:flex-start">Enregistrer</button>
+      <p class="hint">Astuce : l'ID se voit dans le panel revendeur, ou dans l'application (fiche du film) quand elle sera prête.</p>
+    </div>
+    <div class="card">
+      <h2 style="font-size:18px">Image « À la une » (facultatif)</h2>
+      <div class="row" style="align-items:center">
+        <div class="img-prev" style="${bg(c.featured_image_url, '#1B1D28')}"></div>
+        <div class="row"><button class="btn sm" data-up="featured_image_url">Changer</button>${c.featured_image_url ? '<button class="btn sm ghost" data-rm="featured_image_url">Retirer</button>' : ''}</div>
+      </div>
+      <p class="hint">Sans image ici, l'app prend l'affiche fournie par le panel.</p>
+    </div>
+  </div>`;
+  $('#saveFeat').onclick = () => saveConfig(readFields($('#featTxt')));
+  bindImageButtons(m, 'featured', 'vod');
+};
+
+/* ================= Matchs ================= */
+RENDER.matchs = async (m) => {
+  const [leagues, live] = await Promise.all([
+    q(sb.from('football_leagues').select('*').order('position')),
+    q(sb.from('categories').select('xtream_category_id,raw_name,display_name').eq('kind', 'live').order('position'))
+  ]);
+  const opts = (sel) => `<option value="">Aucune</option>` + live.map(c => `<option value="${esc(c.xtream_category_id)}" ${String(sel) === String(c.xtream_category_id) ? 'selected' : ''}>${esc(c.display_name || c.raw_name)}</option>`).join('');
+  m.innerHTML = head('Matchs', 'Championnats affichés dans l\'écran Matchs, leur ordre, et la catégorie de chaînes ouverte par « Regarder ».') + `
+  <div class="tbl"><table style="min-width:720px">
+    <thead><tr><th>Ordre</th><th>Championnat</th><th>Visible</th><th>Catégorie Live liée</th><th></th></tr></thead>
+    <tbody>${leagues.map((l, i) => `
+      <tr data-code="${esc(l.code)}">
+        <td class="hint">${i + 1}</td>
+        <td><input type="text" data-f="name" value="${esc(l.name)}" aria-label="Nom du championnat" style="width:220px"></td>
+        <td><input type="checkbox" data-f="visible" aria-label="Visible" ${l.visible ? 'checked' : ''}></td>
+        <td><select data-f="live_category_id" aria-label="Catégorie liée" style="width:240px">${opts(l.live_category_id)}</select></td>
+        <td><div class="row">
+          <button class="btn sm ghost" data-a="up" aria-label="Monter" ${i === 0 ? 'disabled' : ''}>↑</button>
+          <button class="btn sm ghost" data-a="down" aria-label="Descendre" ${i === leagues.length - 1 ? 'disabled' : ''}>↓</button>
+        </div></td>
+      </tr>`).join('')}
+    </tbody></table></div>
+  ${live.length ? '' : '<p class="hint">Pour lier une catégorie, synchronisez d\'abord les catégories Live dans « Catégories ».</p>'}
+  <div class="card" style="max-width:820px">
+    <h2 style="font-size:18px">Clé API football-data.org</h2>
+    <div class="row"><label class="f grow">Clé (X-Auth-Token)<input type="text" id="fkey" value="${esc(CONFIG.football_api_key)}" placeholder="Votre clé gratuite football-data.org"></label>
+    <button class="btn primary" id="saveKey">Enregistrer</button></div>
+    <p class="hint">Créez une clé gratuite sur football-data.org (offre Free : Champions League, La Liga, Bundesliga, Premier League, Serie A).</p>
+  </div>`;
+  $('#saveKey').onclick = () => saveConfig({ football_api_key: $('#fkey').value.trim() || null });
+  m.querySelectorAll('tr[data-code]').forEach(tr => {
+    const code = tr.dataset.code, idx = leagues.findIndex(l => l.code === code);
+    tr.querySelectorAll('[data-f]').forEach(el => el.onchange = async () => {
+      const v = el.type === 'checkbox' ? el.checked : (el.value.trim() || null);
+      await q(sb.from('football_leagues').update({ [el.dataset.f]: v }).eq('code', code), 'Championnat'); toast('Championnat enregistré');
+    });
+    const swap = async (j) => {
+      const a = leagues[idx], b = leagues[j];
+      await q(sb.from('football_leagues').update({ position: b.position }).eq('code', a.code));
+      await q(sb.from('football_leagues').update({ position: a.position }).eq('code', b.code));
+      go('matchs');
+    };
+    tr.querySelector('[data-a=up]').onclick = () => swap(idx - 1);
+    tr.querySelector('[data-a=down]').onclick = () => swap(idx + 1);
+  });
+};
+
+/* ================= Textes ================= */
+RENDER.texts = async (m) => {
+  const c = CONFIG;
+  m.innerHTML = head('Textes', 'Les textes affichés dans l\'application.') + `
+  <div class="card" id="txt" style="max-width:820px">
+    <label class="f">Message de bienvenue (splash)<input type="text" data-k="welcome_text" value="${esc(c.welcome_text)}"></label>
+    <label class="f">Texte de la page Connexion<textarea rows="3" data-k="login_text">${esc(c.login_text)}</textarea></label>
+    <label class="f">Numéro WhatsApp (avec l'indicatif, ex. +216…)<input type="text" data-k="whatsapp" value="${esc(c.whatsapp)}"></label>
+    <label class="f">Pied de page<input type="text" data-k="footer_text" value="${esc(c.footer_text)}"></label>
+    <button class="btn primary" id="saveTxt" style="align-self:flex-start">Enregistrer</button>
+  </div>`;
+  $('#saveTxt').onclick = () => saveConfig(readFields($('#txt')));
+};
+
+/* ================= Messages ================= */
+RENDER.messages = async (m) => {
+  const c = CONFIG;
+  m.innerHTML = head('Messages aux clients', 'Bande défilante, pop-up à l\'ouverture et alerte avant expiration.') + `
+  <div class="grid">
+    <div class="card" id="msgTicker">
+      <h2 style="font-size:18px">Bande défilante</h2>
+      <label class="c"><input type="checkbox" data-k="ticker_enabled" ${c.ticker_enabled ? 'checked' : ''}> Afficher sur l'accueil</label>
+      <label class="f">Texte<textarea rows="3" data-k="ticker_text">${esc(c.ticker_text)}</textarea></label>
+    </div>
+    <div class="card" id="msgPopup">
+      <h2 style="font-size:18px">Pop-up à l'ouverture</h2>
+      <label class="c"><input type="checkbox" data-k="popup_enabled" ${c.popup_enabled ? 'checked' : ''}> Afficher à l'ouverture de l'app</label>
+      <label class="f">Titre<input type="text" data-k="popup_title" value="${esc(c.popup_title)}" placeholder="Ex. : Nouveautés de la semaine"></label>
+      <label class="f">Texte<textarea rows="3" data-k="popup_text">${esc(c.popup_text)}</textarea></label>
+      <div class="row" style="align-items:center">
+        <div class="img-prev" style="${bg(c.popup_image_url, '#1B1D28')}"></div>
+        <div class="row"><button class="btn sm" data-up="popup_image_url">Image</button>${c.popup_image_url ? '<button class="btn sm ghost" data-rm="popup_image_url">Retirer</button>' : ''}</div>
+      </div>
+    </div>
+    <div class="card" id="msgExp">
+      <h2 style="font-size:18px">Avant l'expiration</h2>
+      <label class="f">Prévenir le client combien de jours avant ?<input type="number" min="0" max="30" data-k="expiry_warning_days" value="${esc(c.expiry_warning_days)}" style="width:120px"></label>
+      <p class="hint">Le message invite le client à renouveler et affiche votre numéro WhatsApp.</p>
+    </div>
+  </div>
+  <button class="btn primary" id="saveMsg" style="align-self:flex-start">Enregistrer les messages</button>`;
+  $('#saveMsg').onclick = () => saveConfig({ ...readFields($('#msgTicker')), ...readFields($('#msgPopup')), ...readFields($('#msgExp')) });
+  bindImageButtons(m, 'popup', 'messages');
+};
+
+/* ================= Signalements ================= */
+let REP_ALL = false;
+RENDER.reports = async (m) => {
+  let req = sb.from('reports').select('*').order('created_at', { ascending: false }).limit(200);
+  if (!REP_ALL) req = req.eq('resolved', false);
+  const rows = await q(req);
+  m.innerHTML = head('Signalements', 'Chaînes signalées en panne par les clients (touche jaune dans le lecteur).',
+    `<label class="c"><input type="checkbox" id="repAll" ${REP_ALL ? 'checked' : ''}> Afficher aussi les réglés</label>`) + `
+  <div class="tbl"><table style="min-width:760px">
+    <thead><tr><th>Date</th><th>Chaîne</th><th>Catégorie</th><th>Appareil</th><th>État</th><th>Actions</th></tr></thead>
+    <tbody>${rows.map(r => `
+      <tr data-id="${r.id}">
+        <td class="hint">${new Date(r.created_at).toLocaleString('fr-FR')}</td>
+        <td>${esc(r.stream_name || r.stream_id)}</td>
+        <td class="hint">${esc(r.category_name)}</td>
+        <td class="hint">${esc(r.device)} ${r.app_version ? '· v' + esc(r.app_version) : ''}</td>
+        <td>${r.resolved ? '<span class="pill green">Réglé</span>' : '<span class="pill red">À traiter</span>'}</td>
+        <td><div class="row">${r.resolved ? '' : '<button class="btn sm" data-a="ok">Marquer réglé</button>'}<button class="btn sm danger" data-a="del">Supprimer</button></div></td>
+      </tr>`).join('') || '<tr><td colspan="6" class="hint">Aucun signalement.</td></tr>'}
+    </tbody></table></div>`;
+  $('#repAll').onchange = e => { REP_ALL = e.target.checked; go('reports'); };
+  m.querySelectorAll('tr[data-id]').forEach(tr => {
+    const id = tr.dataset.id;
+    tr.querySelector('[data-a=ok]')?.addEventListener('click', async () => { await q(sb.from('reports').update({ resolved: true }).eq('id', id)); toast('Marqué réglé'); go('reports'); });
+    tr.querySelector('[data-a=del]').onclick = async () => { if (!confirm('Supprimer ce signalement ?')) return; await q(sb.from('reports').delete().eq('id', id)); go('reports'); };
+  });
+};
+
+/* ================= Abonnements (création de lignes + codes d'activation) ================= */
+const FN = 'bright-responder';
+async function cmsCall(body) {
+  const { data, error } = await sb.functions.invoke(FN, { body });
+  if (error) {
+    let m = error.message;
+    try { const j = await error.context.json(); m = j.error || m; if (j.username) m += ` (ligne créée : ${j.username} / ${j.password})`; } catch {}
+    throw new Error(m);
+  }
+  if (data && data.error) throw new Error(data.error);
+  return data;
+}
+const fmtCode = c => String(c || '').replace(/(\d{4})(?=\d)/g, '$1 ');
+let SUB_SEARCH = '';
+RENDER.subs = async (m) => {
+  m.innerHTML = head('Abonnements', "Créez une ligne sur votre panel et donnez au client un code d'activation à 12 chiffres. Il le tape dans l'app à la place du nom d'utilisateur et du mot de passe.") + `
+  <div class="grid">
+    <div class="card"><span class="hint">Crédits restants (panel)</span><span class="stat" id="credits">…</span><span class="hint" id="resInfo"></span></div>
+  </div>
+  <div class="card" id="newSub" style="max-width:820px">
+    <h2 style="font-size:18px">Nouvel abonnement</h2>
+    <div class="row">
+      <label class="f grow">Bouquet<select id="sPack"><option value="">Chargement…</option></select></label>
+      <label class="f" style="width:180px">Durée<select id="sMonths">
+        <option value="1">1 mois</option><option value="3">3 mois</option><option value="6">6 mois</option><option value="12" selected>12 mois</option></select></label>
+    </div>
+    <div class="row">
+      <label class="f grow">Nom du client<input type="text" id="sName" autocomplete="off"></label>
+      <label class="f grow">Téléphone (facultatif)<input type="text" id="sPhone" autocomplete="off"></label>
+    </div>
+    <label class="f">Note (facultatif)<input type="text" id="sNotes" autocomplete="off"></label>
+    <button class="btn primary" id="sCreate" style="align-self:flex-start">Créer l'abonnement</button>
+    <p class="hint">⚠️ Chaque création consomme des crédits sur votre panel.</p>
+    <div id="sResult"></div>
+  </div>
+  <div class="card" id="impSub" style="max-width:820px">
+    <h2 style="font-size:18px">Ligne existante → code d'activation</h2>
+    <p class="hint">Pour un client qui a déjà une ligne (nom d'utilisateur + mot de passe) : on vérifie la ligne sur votre panel et on lui donne un code. Ne consomme pas de crédits.</p>
+    <div class="row">
+      <label class="f grow">Nom d'utilisateur de la ligne<input type="text" id="iUser" autocomplete="off"></label>
+      <label class="f grow">Mot de passe de la ligne<input type="text" id="iPass" autocomplete="off"></label>
+    </div>
+    <div class="row">
+      <label class="f grow">Nom du client<input type="text" id="iName" autocomplete="off"></label>
+      <label class="f grow">Téléphone (facultatif)<input type="text" id="iPhone" autocomplete="off"></label>
+    </div>
+    <button class="btn primary" id="iGo" style="align-self:flex-start">Générer le code</button>
+    <div id="iResult"></div>
+  </div>
+  <div class="row"><label class="f" style="width:320px"><span class="hint">Rechercher (nom, code, téléphone)</span><input type="search" id="subSearch" value="${esc(SUB_SEARCH)}"></label>
+  <span class="hint" style="margin-left:auto" id="subCount"></span></div>
+  <div class="tbl"><table style="min-width:1180px">
+    <thead><tr><th>Client</th><th>Code</th><th>Bouquet</th><th>Expire</th><th>État</th><th>Appareil</th><th>Actions</th></tr></thead>
+    <tbody id="subRows"><tr><td colspan="7" class="hint">Chargement…</td></tr></tbody></table></div>`;
+
+  cmsCall({ action: 'info' }).then(d => {
+    $('#credits').textContent = d?.credits ?? d?.credit ?? d?.balance ?? '—';
+    $('#resInfo').textContent = Object.entries(d || {}).filter(([k]) => !['status', 'credits', 'credit', 'balance'].includes(k)).map(([k, v]) => `${k} : ${v}`).join(' · ');
+  }).catch(e => { $('#credits').textContent = '—'; $('#resInfo').textContent = 'Panel injoignable : ' + e.message; });
+
+  cmsCall({ action: 'packages' }).then(list => {
+    $('#sPack').innerHTML = (list || []).map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('') || '<option value="">Aucun bouquet</option>';
+  }).catch(e => { $('#sPack').innerHTML = '<option value="">Erreur</option>'; toast(e.message, 'err'); });
+
+  const [rows, locks] = await Promise.all([
+    q(sb.from('subscriptions').select('*').order('created_at', { ascending: false }).limit(1000)),
+    q(sb.from('device_locks').select('username,device_id,device_name').limit(5000))
+  ]);
+  const lockOf = u => locks.find(l => l.username === u);
+  const stateOf = r => {
+    if (r.status !== 'active') return '<span class="pill red">Suspendu</span>';
+    if (r.expire_at && new Date(r.expire_at) < new Date()) return '<span class="pill red">Expiré</span>';
+    return '<span class="pill green">Actif</span>';
+  };
+  $('#subRows').innerHTML = rows.map(r => `
+    <tr data-id="${r.id}" data-s="${esc([r.client_name, r.code, r.client_phone, r.username].join(' ').toLowerCase())}">
+      <td><strong>${esc(r.client_name || '—')}</strong><br><span class="hint">${esc(r.client_phone || '')}</span></td>
+      <td><span style="font-family:monospace;font-size:16px;letter-spacing:1px">${fmtCode(r.code)}</span> <button class="btn sm ghost" data-a="copy">Copier</button></td>
+      <td class="hint">${esc(r.pack_name || r.pack_id || '')} · ${esc(r.months || '')} mois</td>
+      <td class="hint">${esc(r.expire_at || '—')}</td>
+      <td>${stateOf(r)}</td>
+      <td>${(() => { const l = lockOf(r.username); return l
+        ? `<span class="pill grey" title="${esc(l.device_name || '')}">${esc(String(l.device_id).slice(0, 8).toUpperCase())}</span><br><button class="btn sm danger" data-a="reset" style="margin-top:6px">Réinitialiser</button>`
+        : '<span class="hint">Pas encore utilisé</span>'; })()}</td>
+      <td><div class="row">
+        <select data-f="m" style="width:100px;height:34px" aria-label="Durée"><option value="1">1 mois</option><option value="3">3 mois</option><option value="6">6 mois</option><option value="12">12 mois</option></select>
+        <button class="btn sm" data-a="renew">Renouveler</button>
+        <button class="btn sm ${r.status === 'active' ? 'danger' : ''}" data-a="toggle">${r.status === 'active' ? 'Suspendre' : 'Réactiver'}</button>
+        <button class="btn sm ghost" data-a="refresh">Actualiser</button>
+      </div></td>
+    </tr>`).join('') || '<tr><td colspan="7" class="hint">Aucun abonnement pour le moment.</td></tr>';
+  $('#subCount').textContent = `${rows.length} abonnement(s)`;
+
+  const filter = () => m.querySelectorAll('tr[data-s]').forEach(tr => tr.classList.toggle('hidden', !tr.dataset.s.includes(SUB_SEARCH.toLowerCase().replace(/\s/g, '')) && !tr.dataset.s.includes(SUB_SEARCH.toLowerCase())));
+  $('#subSearch').oninput = e => { SUB_SEARCH = e.target.value.trim(); filter(); };
+  filter();
+
+  $('#sCreate').onclick = async () => {
+    const sel = $('#sPack');
+    if (!sel.value) return toast('Choisissez un bouquet', 'err');
+    const name = $('#sName').value.trim();
+    if (!name) return toast('Écrivez le nom du client', 'err');
+    const months = $('#sMonths').value;
+    const packName = sel.options[sel.selectedIndex].text;
+    if (!confirm(`Créer un abonnement ${months} mois « ${packName} » pour ${name} ? Cela consomme des crédits.`)) return;
+    $('#sCreate').disabled = true; $('#sResult').innerHTML = '<p class="hint">Création en cours…</p>';
+    try {
+      const r = await cmsCall({ action: 'create', pack_id: sel.value, pack_name: packName, months, client_name: name, client_phone: $('#sPhone').value.trim(), notes: $('#sNotes').value.trim() });
+      $('#sResult').innerHTML = `<div class="card" style="background:rgba(45,181,96,.1);border-color:rgba(45,181,96,.5)">
+        <span class="hint">Code d'activation pour ${esc(name)}</span>
+        <span class="stat" style="letter-spacing:3px">${fmtCode(r.code)}</span>
+        <span class="hint">Expire : ${esc(r.expire_at || '—')}</span>
+        <button class="btn" id="copyNew" style="align-self:flex-start">Copier le code</button></div>`;
+      $('#copyNew').onclick = () => { navigator.clipboard.writeText(r.code); toast('Code copié'); };
+      toast('Abonnement créé');
+      setTimeout(() => go('subs'), 30000);
+    } catch (e) {
+      $('#sResult').innerHTML = `<p class="hint" style="color:#FFB3B7">Erreur : ${esc(e.message)}</p>`;
+    } finally { $('#sCreate').disabled = false; }
+  };
+
+  $('#iGo').onclick = async () => {
+    const u = $('#iUser').value.trim(), p = $('#iPass').value.trim(), name = $('#iName').value.trim();
+    if (!u || !p) return toast("Écrivez le nom d'utilisateur et le mot de passe de la ligne", 'err');
+    if (!name) return toast('Écrivez le nom du client', 'err');
+    $('#iGo').disabled = true; $('#iResult').innerHTML = '<p class="hint">Vérification sur le panel…</p>';
+    try {
+      const r = await cmsCall({ action: 'import', username: u, password: p, client_name: name, client_phone: $('#iPhone').value.trim() });
+      $('#iResult').innerHTML = `<div class="card" style="background:rgba(45,181,96,.1);border-color:rgba(45,181,96,.5)">
+        <span class="hint">${r.already ? 'Cette ligne avait déjà un code' : "Code d'activation pour " + esc(name)}</span>
+        <span class="stat" style="letter-spacing:3px">${fmtCode(r.code)}</span>
+        <span class="hint">Expire : ${esc(r.expire_at || '—')}</span>
+        <button class="btn" id="copyImp" style="align-self:flex-start">Copier le code</button></div>`;
+      $('#copyImp').onclick = () => { navigator.clipboard.writeText(r.code); toast('Code copié'); };
+      toast('Code prêt');
+      setTimeout(() => go('subs'), 30000);
+    } catch (e) {
+      $('#iResult').innerHTML = `<p class="hint" style="color:#FFB3B7">Erreur : ${esc(e.message)}</p>`;
+    } finally { $('#iGo').disabled = false; }
+  };
+
+  m.querySelectorAll('tr[data-id]').forEach(tr => {
+    const id = Number(tr.dataset.id);
+    const r = rows.find(x => x.id === id);
+    tr.querySelector('[data-f=m]').value = String(r.months || 1);
+    tr.querySelector('[data-a=copy]').onclick = () => { navigator.clipboard.writeText(r.code); toast('Code copié'); };
+    const run = async (btn, body, okMsg, ask) => {
+      if (ask && !confirm(ask)) return;
+      btn.disabled = true;
+      try { await cmsCall(body); toast(okMsg); go('subs'); } catch (e) { toast(e.message, 'err'); btn.disabled = false; }
+    };
+    tr.querySelector('[data-a=renew]').onclick = e => {
+      const mo = tr.querySelector('[data-f=m]').value;
+      run(e.target, { action: 'renew', id, months: mo }, 'Abonnement renouvelé', `Renouveler ${r.client_name || ''} pour ${mo} mois ? Cela consomme des crédits.`);
+    };
+    tr.querySelector('[data-a=toggle]').onclick = e => {
+      const en = r.status !== 'active';
+      run(e.target, { action: 'status', id, enable: en }, en ? 'Ligne réactivée' : 'Ligne suspendue', en ? null : `Suspendre ${r.client_name || 'ce client'} ? Il ne pourra plus regarder.`);
+    };
+    tr.querySelector('[data-a=reset]')?.addEventListener('click', async () => {
+      if (!confirm(`Réinitialiser l'appareil de ${r.client_name || r.username} ? Le code pourra être utilisé sur un nouvel appareil.`)) return;
+      await q(sb.from('device_locks').delete().eq('username', r.username), 'Réinitialisation');
+      toast('Appareil réinitialisé'); go('subs');
+    });
+    tr.querySelector('[data-a=refresh]').onclick = e => run(e.target, { action: 'refresh', id }, 'Infos mises à jour');
+  });
+};
+
+/* ================= Appareils (1 ligne = 1 appareil) ================= */
+let DEV_SEARCH = '';
+RENDER.devices = async (m) => {
+  const rows = await q(sb.from('device_locks').select('*').order('last_seen', { ascending: false }).limit(1000));
+  const on = CONFIG.device_lock_enabled !== false;
+  m.innerHTML = head('Appareils', 'Chaque ligne ne fonctionne que sur le premier appareil où elle se connecte. « Réinitialiser » libère la ligne pour un autre appareil.') + `
+  <div class="card" id="lockCard" style="max-width:820px">
+    <label class="c"><input type="checkbox" data-k="device_lock_enabled" ${on ? 'checked' : ''}> Activer « 1 ligne = 1 appareil »</label>
+    <button class="btn primary" id="saveLock" style="align-self:flex-start">Enregistrer</button>
+  </div>
+  <div class="row"><label class="f" style="width:320px"><span class="hint">Rechercher un nom d'utilisateur</span><input type="search" id="devSearch" value="${esc(DEV_SEARCH)}"></label>
+  <span class="hint" style="margin-left:auto">${rows.length} ligne(s) liée(s)</span></div>
+  <div class="tbl"><table style="min-width:820px">
+    <thead><tr><th>Nom d'utilisateur</th><th>Code appareil</th><th>Type</th><th>Première connexion</th><th>Dernière connexion</th><th></th></tr></thead>
+    <tbody>${rows.map(r => `
+      <tr data-u="${esc(r.username)}" data-name="${esc(r.username).toLowerCase()}">
+        <td><strong>${esc(r.username)}</strong></td>
+        <td><span class="pill grey">${esc(String(r.device_id).slice(0, 8).toUpperCase())}</span></td>
+        <td class="hint">${esc(r.device_name)}</td>
+        <td class="hint">${new Date(r.first_seen).toLocaleString('fr-FR')}</td>
+        <td class="hint">${new Date(r.last_seen).toLocaleString('fr-FR')}</td>
+        <td><button class="btn sm danger" data-a="reset">Réinitialiser</button></td>
+      </tr>`).join('') || '<tr><td colspan="6" class="hint">Aucune ligne liée pour le moment.</td></tr>'}
+    </tbody></table></div>
+  <p class="hint">Le « Code appareil » est aussi affiché dans l'app (Paramètres), et dans le message d'erreur quand un client essaie sur un autre appareil.</p>`;
+  $('#saveLock').onclick = () => saveConfig(readFields($('#lockCard')));
+  const filter = () => m.querySelectorAll('tr[data-u]').forEach(tr => tr.classList.toggle('hidden', !tr.dataset.name.includes(DEV_SEARCH.toLowerCase())));
+  $('#devSearch').oninput = e => { DEV_SEARCH = e.target.value.trim(); filter(); };
+  filter();
+  m.querySelectorAll('[data-a=reset]').forEach(b => b.onclick = async () => {
+    const u = b.closest('tr').dataset.u;
+    if (!confirm(`Réinitialiser la ligne « ${u} » ? Elle pourra être activée sur un autre appareil.`)) return;
+    await q(sb.from('device_locks').delete().eq('username', u), 'Réinitialisation');
+    toast(`Ligne ${u} réinitialisée`); go('devices');
+  });
+};
+
+/* ================= Mises à jour ================= */
+RENDER.updates = async (m) => {
+  const c = CONFIG;
+  m.innerHTML = head('Mises à jour de l\'app', 'Quand la version en ligne est plus récente que celle du client, l\'app propose la mise à jour.') + `
+  <div class="card" id="upd" style="max-width:820px">
+    <label class="f">Version en ligne (ex. 1.0.1)<input type="text" data-k="latest_version" value="${esc(c.latest_version)}" style="width:160px"></label>
+    <label class="f">Lien de téléchargement de l'APK<input type="url" data-k="apk_url" value="${esc(c.apk_url)}" placeholder="https://…"></label>
+    <div class="row"><button class="btn" id="upApk">Déposer un nouvel APK</button><span class="hint" id="apkInfo"></span></div>
+    <label class="c"><input type="checkbox" data-k="force_update" ${c.force_update ? 'checked' : ''}> Mise à jour obligatoire (le client ne peut pas continuer sans mettre à jour)</label>
+    <button class="btn primary" id="saveUpd" style="align-self:flex-start">Enregistrer</button>
+    <p class="hint">Pensez à augmenter le numéro de version à chaque nouvel APK. Taille maximale d'un fichier sur l'offre gratuite Supabase : 50 Mo.</p>
+  </div>`;
+  $('#upApk').onclick = async () => {
+    const f = await pickFile('.apk,application/vnd.android.package-archive'); if (!f) return;
+    $('#upApk').disabled = true; $('#apkInfo').textContent = `Envoi de ${f.name} (${(f.size / 1048576).toFixed(1)} Mo)…`;
+    try { const url = await uploadFile(f, 'apk'); m.querySelector('[data-k=apk_url]').value = url; $('#apkInfo').textContent = 'APK envoyé. Cliquez sur « Enregistrer ».'; }
+    catch { $('#apkInfo').textContent = 'Échec de l\'envoi.'; }
+    finally { $('#upApk').disabled = false; }
+  };
+  $('#saveUpd').onclick = () => {
+    const o = readFields($('#upd'));
+    if (!/^\d+\.\d+\.\d+$/.test(o.latest_version || '')) return toast('Version au format 1.0.0', 'err');
+    saveConfig(o);
+  };
+};
+
+/* ================= Maintenance ================= */
+RENDER.maintenance = async (m) => {
+  const c = CONFIG;
+  m.innerHTML = head('Maintenance', 'Affiche un écran de maintenance à tous les clients.') + `
+  <div class="card" id="mnt" style="max-width:820px">
+    <label class="c"><input type="checkbox" data-k="maintenance_enabled" ${c.maintenance_enabled ? 'checked' : ''}> Activer l'écran de maintenance</label>
+    <label class="f">Message affiché<input type="text" data-k="maintenance_message" value="${esc(c.maintenance_message)}"></label>
+    <button class="btn primary" id="saveMnt" style="align-self:flex-start">Enregistrer</button>
+  </div>`;
+  $('#saveMnt').onclick = () => {
+    const o = readFields($('#mnt'));
+    if (o.maintenance_enabled && !confirm('Activer la maintenance ? Les clients ne pourront plus regarder.')) return;
+    saveConfig(o);
+  };
+};
+
+window.addEventListener('hashchange', () => { const id = location.hash.slice(1); if (CONFIG && RENDER[id]) go(id); });
+boot();
+</script>
+</body>
+</html>
