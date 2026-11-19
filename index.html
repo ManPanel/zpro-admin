@@ -714,7 +714,7 @@ async function cmsCall(body) {
   const { data, error } = await sb.functions.invoke(FN, { body });
   if (error) {
     let m = error.message;
-    try { const j = await error.context.json(); m = j.error || m; if (j.username) m += ` (ligne créée : ${j.username} / ${j.password})`; } catch {}
+    try { const j = await error.context.json(); m = j.error || m; if (j.username) m += ` (la ligne ${j.username} a été créée sur le panel : prévenez le propriétaire)`; } catch {}
     throw new Error(m);
   }
   if (data && data.error) throw new Error(data.error);
@@ -777,7 +777,7 @@ RENDER.subs = async (m) => {
   }).catch(e => { $('#sPack').innerHTML = '<option value="">Erreur</option>'; toast(e.message, 'err'); });
 
   const [rows, locks, vends] = await Promise.all([
-    q(sb.from('subscriptions').select('*').order('created_at', { ascending: false }).limit(1000)),
+    q(sb.from('subscriptions').select('id,code,username,cms_user_id,pack_id,pack_name,months,expire_at,client_name,client_phone,notes,status,created_at,created_by,suspended_by').order('created_at', { ascending: false }).limit(1000)),
     q(sb.from('device_locks').select('username,device_id,device_name').limit(5000)),
     ROLE === 'owner' ? q(sb.from('vendors').select('user_id,name')) : Promise.resolve([])
   ]);
