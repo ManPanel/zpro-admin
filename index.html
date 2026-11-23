@@ -407,6 +407,7 @@ RENDER.brand = async (m) => {
         <label class="f grow">Couleur du focus TV<input type="text" data-k="focus_color" value="${esc(c.focus_color)}"></label>
         <input type="color" aria-label="Choisir la couleur du focus" value="${esc(c.focus_color)}" data-mirror="focus_color" style="width:52px;height:42px;border:none;background:none">
       </div>
+      <label class="c"><input type="checkbox" data-k="intro_sound" ${c.intro_sound !== false ? 'checked' : ''}> Son d'ouverture au lancement de l'application</label>
       <button class="btn primary" id="saveBrand" style="align-self:flex-start">Enregistrer</button>
     </div>
     <div class="card">
